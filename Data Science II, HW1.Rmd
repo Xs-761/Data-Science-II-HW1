@@ -6,6 +6,7 @@ output: github_document
 ```{r packages, warnig=FALSE}
   library(glmnet)
   library(caret)
+  library(dplyr)
 
   library(tidymodels) # mata-engines for model training
   library(corrplot)   # to generate correlation matrix
@@ -14,9 +15,138 @@ output: github_document
   library(ggrepel)    # for plotting functions
 ```
 
-# Load data
-```{r}
-  housing_training <- read.csv("../housing_training.csv")
-  housing_test <- read.csv("../housing_test.csv")
-  getwd()
+```{r data}
+  train <- read.csv("../housing_training.csv") %>% na.omit()
+  test <- read.csv("../housing_test.csv") %>% na.omit()
 ```
+
+### Part A
+
+```{r Extraction of Predictors and Responses}
+  Y_train <- train$Sale_Price
+  X_train <- as.matrix(train[, !(names(train) %in% c("Sale_Price"))])
+  X_test <- as.matrix(test[, !(names(test) %in% c("Sale_Price"))])
+```
+
+```{r Fitting Lasso Regression 10-Folds}
+  set.seed(21)
+  lambda_grid <- exp(seq(-5, 10, length = 100))
+  lasso_cv <- cv.glmnet(X_train, Y_train, alpha = 1, nfolds = 10,
+                        lambda = lambda_grid, standardize = TRUE)
+```
+
+```{r Obtain Optimal λ}
+  best_lambda <- lasso_cv$lambda.min
+  lambda_1se <- lasso_cv$lambda.1se
+  plot(lasso_cv)
+```
+
+```{r Fit Model using Best λ}
+  lasso_model <- glmnet(X_train, Y_train, alpha = 1, lambda = best_lambda, standardize = TRUE)
+```
+
+```{r #of Selected Predictors}
+  selected_predictors <- sum(coef(lasso_model) != 0) - 1  # Exclude intercept
+```
+
+```{r Prediction on Testing Data}
+  y_pred <- predict(lasso_model, s = best_lambda, newx = X_test)
+```
+
+```{r RMSE plot}
+  # Compute test error (RMSE)
+  y_test <- test$Sale_Price  # Assuming test dataset has actual Sale_Price
+  rmse <- sqrt(mean((y_test - y_pred)^2))
+  
+  data_plot <- data.frame(lambda = log(lambda_grid), RMSE = lasso_cv$cvm)
+  
+  rmse_plot <-  ggplot(data_plot, aes(x = lambda, y = RMSE)) +
+                geom_point(color = "blue", size = 2) +
+                geom_line(color = "blue") +
+                labs(x = "Regularization Parameter", y = "RMSE (Cross-Validation)") +
+                theme_minimal()
+  
+  print(rmse_plot)
+```
+
+```{r}
+# Identify and remove extra column in test set
+  extra_col <- setdiff(colnames(test), colnames(train))
+  if (length(extra_col) > 0) {
+    cat("Extra column in test set:", extra_col, "\n")
+    test <- test[, colnames(train), drop = FALSE]
+  }
+
+# Extract response variable (Sale_Price) and predictors
+  Y_train <- train$Sale_Price
+  X_train <- as.matrix(train[, !(names(train) %in% c("Sale_Price"))])
+  X_test <- as.matrix(test[, !(names(test) %in% c("Sale_Price"))])
+
+# Define a better-spaced lambda grid
+  lambda_grid <- exp(seq(6, 0, length.out = 100))
+
+# Implement manual cross-validation to correctly compute RMSE
+M <- 10
+rmse <- matrix(NA, ncol = 100, nrow = M)
+train_id_list <- createFolds(Y_train, k = M, returnTrain = TRUE)
+
+for (m in 1:M) {
+  tsdata <- train[train_id_list[[m]], ]  # Training data for fold m
+  vsdata <- train[-train_id_list[[m]], ]  # Validation data for fold m
+  
+  x1 <- as.matrix(tsdata[, !(names(tsdata) %in% c("Sale_Price"))])
+  y1 <- tsdata$Sale_Price
+  x2 <- as.matrix(vsdata[, !(names(vsdata) %in% c("Sale_Price"))])
+  y2 <- vsdata$Sale_Price
+  
+  fit <- glmnet(x1, y1, alpha = 1, lambda = lambda_grid)
+  pred <- predict(fit, newx = x2, s = lambda_grid)
+  
+  rmse[m, ] <- apply((y2 - pred)^2, 2, mean) |> sqrt()
+}
+
+# Compute mean RMSE across folds
+cv_rmse <- colMeans(rmse)
+
+# Plot RMSE vs. log(lambda)
+data_plot <- data.frame(lambda = log(lambda_grid), RMSE = cv_rmse)
+
+rmse_plot <- ggplot(data_plot, aes(x = lambda, y = RMSE)) +
+  geom_point(color = "blue", size = 2) +
+  geom_line(color = "blue") +
+  labs(x = "Regularization Parameter", y = "RMSE (Cross-Validation)") +
+  theme_minimal()
+
+print(rmse_plot)
+
+# Select best lambda based on manual CV
+best_lambda <- lambda_grid[which.min(cv_rmse)]
+
+# Fit final model using best lambda
+lasso_model <- glmnet(X_train, Y_train, alpha = 1, lambda = best_lambda, standardize = TRUE)
+
+# Count number of selected predictors (non-zero coefficients)
+selected_predictors <- sum(coef(lasso_model) != 0) - 1  # Exclude intercept
+
+# Predict on test data
+y_pred <- predict(lasso_model, s = best_lambda, newx = X_test)
+
+# Compute test error (RMSE)
+y_test <- test$Sale_Price  # Assuming test dataset has actual Sale_Price
+rmse_test <- sqrt(mean((y_test - y_pred)^2))
+
+# Report results
+cat("Optimal lambda:", best_lambda, "\n")
+cat("Number of selected predictors:", selected_predictors, "\n")
+cat("Test RMSE:", rmse_test, "\n")
+
+
+```
+
+### Part B
+
+### Part C
+
+### Part D
+
+### Part E
