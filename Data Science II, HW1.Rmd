@@ -1,8 +1,6 @@
 ---
 title: "Data Science II, HW1"
 output: github_document
-editor_options: 
-  chunk_output_type: console
 ---
 
 ```{r packages, warnig=FALSE}
