@@ -1,5 +1,24 @@
 ---
 title: "Data Science II, HW1"
 output: github_document
+editor_options: 
+  chunk_output_type: console
 ---
-test
+
+```{r packages, warnig=FALSE}
+  library(glmnet)
+  library(caret)
+
+  library(tidymodels) # mata-engines for model training
+  library(corrplot)   # to generate correlation matrix
+  library(ggplot2)    # for plots and graphics
+  library(plotmo)     # to generate trace plot 
+  library(ggrepel)    # for plotting functions
+```
+
+# Load data
+```{r}
+  housing_training <- read.csv("../housing_training.csv")
+  housing_test <- read.csv("../housing_test.csv")
+  getwd()
+```
