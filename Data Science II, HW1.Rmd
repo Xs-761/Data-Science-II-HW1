@@ -12,6 +12,7 @@ output: github_document
   library(ggplot2)    # for plots and graphics
   library(plotmo)     # to generate trace plot 
   library(ggrepel)    # for plotting functions
+  library(pls)
 ```
 
 ```{r load data}
@@ -55,7 +56,7 @@ output: github_document
 
 ### Part B — Elastic Net
 
-```{r}
+```{r Elastic Net Model, fig.align='center', fig.width=10, fig.height=10}
   TC = trainControl(method="cv", number=10)
   ENet.fit <- train( Sale_Price ~ ., 
                      data=train,
@@ -71,24 +72,135 @@ output: github_document
   plot(ENet.fit, par.settings=myPar, xTrans=log)
   
   ENet_RMSE <- sqrt(mean((test$Sale_Price - predict(ENet.fit, newdata = test))^2))
+```
+
+```{r Min & 1SE RMSE}
+  min_rmse <- min(ENet.fit$results$RMSE) # Find the minimum RMSE
+  rmse_1se_threshold <- min_rmse + sd(ENet.fit$results$RMSE) # Compute 1SE threshold
+  lambda_1se <- max(ENet.fit$results$lambda[ENet.fit$results$RMSE <= rmse_1se_threshold])
+  subset_1se <- ENet.fit$results[ENet.fit$results$lambda == lambda_1se, ] # Subset rows where lambda=lambda_1se
+  alpha_1se <- subset_1se$alpha[which.min(subset_1se$RMSE)] # Select the alpha that gives the lowest RMSE within that subset
+  
+  ENet_1SE <- glmnet(as.matrix(train[, -which(names(train) == "Sale_Price")]), 
+                              train$Sale_Price, 
+                              alpha = alpha_1se, 
+                              lambda = lambda_1se, 
+                              standardize = TRUE)
+  
+  y_pred_elastic_1se <- predict(ENet_1SE, newx = as.matrix(test[, -which(names(test) == "Sale_Price")]))
+  rmse_elastic_1se <- sqrt(mean((test$Sale_Price - y_pred_elastic_1se)^2))
 
 ```
 
--   **Optimal Tuning Parameter given by:**
+-   **Optimal:**
     -   α = `r round(ENet.fit$bestTune$alpha, 4)`
     -   λ = `r round(ENet.fit$bestTune$lambda, 4)`
--   **Test Error RMSE:** `r format(round(ENet_RMSE, 4), scientific=FALSE)`
+    -   **Corresponding Test Error RMSE:** `r format(round(ENet_RMSE, 4), scientific=FALSE)`
+-   **Yes, 1SE rule is applicable.**
+    -   α =`r round(alpha_1se, 4)`
+    -   λ =`r format(round(lambda_1se, 4), scientific=FALSE)`
+    -   **Corresponding Test Error RMSE:** `r format(round(rmse_elastic_1se, 4), scientific=FALSE)`
 
 ### Part C
 
-```{r}
-
+```{r Partial Least Squares}
+  PLS.fit <- train(
+    Sale_Price ~ .,
+    data = train,
+    method = "pls",
+    trControl = trainControl(method = "cv", number = 10),
+    tuneLength = 20  # Allows automatic selection of the optimal number of components
+  )
 ```
+
+```{r}
+  best_ncomp <- PLS.fit$bestTune$ncomp
+  cat("Optimal number of PLS components:", best_ncomp, "\n")
+```
+
+```{r}
+  pls_final <- plsr(Sale_Price ~ ., data = train, ncomp = best_ncomp, validation = "CV")
+```
+
+```{r}
+  y_pred_pls <- predict(pls_final, newdata = test, ncomp = best_ncomp)
+  rmse_pls <- sqrt(mean((test$Sale_Price - y_pred_pls)^2))
+```
+
+-   **Optimal #of PLS Components =** `r best_ncomp`
+
+-   **Test RMSE =** `r format(round(rmse_pls, 4), scientific=FALSE)`
 
 ### Part D
 
-```{r}
+```{r Model Comparison}
+
+  Lasso.fit <- train(Sale_Price ~ ., 
+                   data=train,
+                   method="glmnet",
+                   standardize = TRUE,
+                   tuneGrid= expand.grid(alpha=1, lambda=lambda_grid),
+                   trControl = TC)
+  
+  lm.fit = train(Sale_Price~., 
+                 data=train,
+                 method="lm",
+                 trControl=TC)
+  
+  resamp = resamples(list( enet=ENet.fit, lasso=Lasso.fit, lm=lm.fit ))
+  summary(resamp)
+```
+
+-   **Comparing the RMSE among Models we get:**
+
+    -   Elastic Net: 22,998.34
+
+    -   Lasso: 22,791.35
+
+    -   LM: 22,858.80
+
+        **Lasso has the lowest RMSE, making it the best predictor based on this metric.**
+
+-   **Comparing R2:**
+
+    -   Elastic Net: 0.9003
+
+    -   Lasso: 0.9009
+
+    -   LM: 0.9059
+
+        **Linear regression has the highest R², meaning it explains more variance, but its RMSE is slightly higher than Lasso. Also, this difference is very small among three models.**
+
+-   **Final Conclusion: Lasso Model provides the best trade-off between error minimization and model fit.**
+
+### Part E
+
+```{r Reanswer Q1 Differently}
+  Lasso.fit <- train(Sale_Price ~ ., 
+                   data=train,
+                   method="glmnet",
+                   standardize = TRUE,
+                   tuneGrid= expand.grid(alpha=1, lambda=lambda_grid),
+                   trControl = TC)
+
+  min_rmse <- min(Lasso.fit$results$RMSE)
+
+  lambda_min <- Lasso.fit$bestTune$lambda
+  
+# Compute the 1SE threshold
+  rmse_1se_threshold <- min_rmse + sd(Lasso.fit$results$RMSE)
+
+# Select the largest lambda within 1SE
+  lambda_1se <- max(Lasso.fit$results$lambda[Lasso.fit$results$RMSE <= rmse_1se_threshold])
 
 ```
 
-### Part E
+-   **Optimal:**
+    -   λ = `r round(lambda_min, 4)`
+-   **1SE:**
+    -   λ =`r format(round(lambda_1se, 4), scientific=FALSE)`
+-   **Discussion on the Discrepancies:**
+    -   Both methods are valid, just using different techniques.
+    -   Unlike caret::train(), cv.glmnet() has its own built-in selection process, affecting in how it searches for the best and 1se λ.
+    -   The first method caret::train() tends to select a larger λ1SE, potentially leading to a simpler model. The second methodcv.glmnet() may provide a finer control over λ selection, making it more stable.
+    -   In cv.glmnet(), lambda.1SE is calculated within cv.glmnet()'s internal cross-validation process. **In** caret::train(), we manually compute lambda.1se, and if the lambda grid is different, the highest λ within 1SE can be significantly larger.
