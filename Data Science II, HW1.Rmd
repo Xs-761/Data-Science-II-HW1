@@ -33,7 +33,7 @@ output: github_document
   lambda_grid <- exp(seq(10,-5, length = 100))  # lambda sequence in DESC order
 ```
 
-### Part A
+### Part A — Lasso Model
 
 ```{r Lasso Regression, fig.align='center'}
   cv.lasso = cv.glmnet(x=predictors, y=response, standardize=TRUE, alpha=1, lambda=lambda_grid)
@@ -47,16 +47,27 @@ output: github_document
   predict(cv.lasso, s="lambda.min", type="coefficients")
 ```
 
--   **Selected Tuning Parameter for Lasso**: 38 (optimal λ)
+-   **Selected Tuning Parameter for Lasso** (optimal λ): 38
 
-    -   **Corresponding Test MSE**: `r cv.lasso$lambda.min`
+    -   **Corresponding Test MSE**: `r round(cv.lasso$lambda.min, 4)`
 
 -   **#of Predictors associates with 1SE**: 36
 
-### Part B
+### Part B — Elastic Net
 
 ```{r}
+  TC = trainControl(method="cv", number=10)
+  ENet.fit <- train( Sale_Price ~ ., 
+                     data=train,
+                     method="glmnet", 
+                     tuneGrid= expand.grid(alpha=seq(0,1,length=20), lambda=lambda_grid),
+                     trControl = TC
+                    )
 ```
+
+-   **Optimal Tuning Parameter given by:**
+    -   α = `r round(ENet.fit$bestTune$alpha, 4)`
+    -   λ = `r round(ENet.fit$bestTune$lambda, 4)`
 
 ### Part C
 

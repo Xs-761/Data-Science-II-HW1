@@ -33,7 +33,7 @@ Data Science II, HW1
   lambda_grid <- exp(seq(10,-5, length = 100))  # lambda sequence in DESC order
 ```
 
-### Part A
+### Part A — Lasso Model
 
 ``` r
   cv.lasso = cv.glmnet(x=predictors, y=response, standardize=TRUE, alpha=1, lambda=lambda_grid)
@@ -107,13 +107,27 @@ Data Science II, HW1
     ## Misc_Val                    8.661587e-01
     ## Year_Sold                  -5.945218e+02
 
-- **Selected Tuning Parameter for Lasso**: 38 (optimal λ)
+- **Selected Tuning Parameter for Lasso** (optimal λ): 38
 
-  - **Corresponding Test MSE**: 37.9535725
+  - **Corresponding Test MSE**: 37.9536
 
 - **\#of Predictors associates with 1SE**: 36
 
-### Part B
+### Part B — Elastic Net
+
+``` r
+  TC = trainControl(method="cv", number=10)
+  ENet.fit <- train( Sale_Price ~ ., 
+                     data=train,
+                     method="glmnet", 
+                     tuneGrid= expand.grid(alpha=seq(0,1,length=20), lambda=lambda_grid),
+                     trControl = TC
+                    )
+```
+
+- **Optimal Tuning Parameter given by:**
+  - α = 0.0526
+  - λ = 580.3529
 
 ### Part C
 
