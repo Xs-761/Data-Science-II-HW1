@@ -109,7 +109,7 @@ Data Science II, HW1
 
 - **Selected Tuning Parameter for Lasso** (optimal λ): 38
 
-  - **Corresponding Test MSE**: 37.9536
+  - **Corresponding Test RMSE**: 6.1606
 
 - **\#of Predictors associates with 1SE**: 36
 
@@ -120,14 +120,27 @@ Data Science II, HW1
   ENet.fit <- train( Sale_Price ~ ., 
                      data=train,
                      method="glmnet", 
-                     tuneGrid= expand.grid(alpha=seq(0,1,length=20), lambda=lambda_grid),
+                     standardize = TRUE,
+                     tuneGrid= expand.grid(alpha=round(seq(0,1,length=20), 2),
+                                           lambda=lambda_grid),
                      trControl = TC
                     )
+  
+  myPar = list(superpose.symbol = list(col=rainbow(25)),
+               superpose.line   = list(col=rainbow(25)))
+  plot(ENet.fit, par.settings=myPar, xTrans=log)
+```
+
+![](Data-Science-II,-HW1_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
+``` r
+  ENet_RMSE <- sqrt(mean((test$Sale_Price - predict(ENet.fit, newdata = test))^2))
 ```
 
 - **Optimal Tuning Parameter given by:**
-  - α = 0.0526
+  - α = 0.05
   - λ = 580.3529
+- **Test Error RMSE:** 20939.7
 
 ### Part C
 

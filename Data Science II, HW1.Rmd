@@ -49,7 +49,7 @@ output: github_document
 
 -   **Selected Tuning Parameter for Lasso** (optimal λ): 38
 
-    -   **Corresponding Test MSE**: `r round(cv.lasso$lambda.min, 4)`
+    -   **Corresponding Test RMSE**: `r round(sqrt(cv.lasso$lambda.min), 4)`
 
 -   **#of Predictors associates with 1SE**: 36
 
@@ -60,14 +60,24 @@ output: github_document
   ENet.fit <- train( Sale_Price ~ ., 
                      data=train,
                      method="glmnet", 
-                     tuneGrid= expand.grid(alpha=seq(0,1,length=20), lambda=lambda_grid),
+                     standardize = TRUE,
+                     tuneGrid= expand.grid(alpha=round(seq(0,1,length=20), 2),
+                                           lambda=lambda_grid),
                      trControl = TC
                     )
+  
+  myPar = list(superpose.symbol = list(col=rainbow(25)),
+               superpose.line   = list(col=rainbow(25)))
+  plot(ENet.fit, par.settings=myPar, xTrans=log)
+  
+  ENet_RMSE <- sqrt(mean((test$Sale_Price - predict(ENet.fit, newdata = test))^2))
+
 ```
 
 -   **Optimal Tuning Parameter given by:**
     -   α = `r round(ENet.fit$bestTune$alpha, 4)`
     -   λ = `r round(ENet.fit$bestTune$lambda, 4)`
+-   **Test Error RMSE:** `r format(round(ENet_RMSE, 4), scientific=FALSE)`
 
 ### Part C
 
